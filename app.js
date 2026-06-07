@@ -200,7 +200,13 @@ function setupDraggablePanel(panel) {
 
 // Center the 12x12 grid inside the resizable viewport window
 function centerGrid() {
-    state.zoom = 1.0;
+    const rect = viewport.getBoundingClientRect();
+    const fitSize = 14 * CELL_SIZE; // 14 cells includes labels and side padding
+    
+    const zoomX = rect.width / fitSize;
+    const zoomY = rect.height / fitSize;
+    
+    state.zoom = Math.max(0.3, Math.min(1.2, Math.min(zoomX, zoomY)));
     state.panX = 0;
     state.panY = 0;
     updateCanvasTransform();

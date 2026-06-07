@@ -72,6 +72,7 @@ for (let r = 20; r <= 29; r++) OUTSIDE_SLOTS.push({ x: 30, y: r });
 // Initialize the Application
 function init() {
     setupNumbers();
+    setupInputLanes();
     setupColorSwatches();
     setupEventListeners();
     setupDraggablePanel(colorPanel);
@@ -119,6 +120,114 @@ function setupNumbers() {
         cell.className = 'label-cell';
         cell.innerHTML = `<span class="cell-number">${r}</span>`;
         labelRight.appendChild(cell);
+    }
+}
+
+// Generate the transparent input cells on the 4 outside sides
+function setupInputLanes() {
+    const inputLeft = document.getElementById('input-left');
+    const inputTop = document.getElementById('input-top');
+    const inputBottom = document.getElementById('input-bottom');
+    const inputRight = document.getElementById('input-right');
+
+    // Left vertical inputs (row index corresponds to y = 20..29)
+    for (let r = 20; r <= 29; r++) {
+        const cell = createInputCell('left', r, `input_left_${r}`);
+        inputLeft.appendChild(cell);
+    }
+
+    // Top horizontal inputs (col index corresponds to x = 20..29)
+    for (let c = 20; c <= 29; c++) {
+        const cell = createInputCell('top', c, `input_top_${c}`);
+        inputTop.appendChild(cell);
+    }
+
+    // Bottom horizontal inputs (col index corresponds to x = 20..29)
+    for (let c = 20; c <= 29; c++) {
+        const cell = createInputCell('bottom', c, `input_bottom_${c}`);
+        inputBottom.appendChild(cell);
+    }
+
+    // Right vertical inputs (row index corresponds to y = 20..29)
+    for (let r = 20; r <= 29; r++) {
+        const cell = createInputCell('right', r, `input_right_${r}`);
+        inputRight.appendChild(cell);
+    }
+}
+
+// Helper to create an input cell element with key and input events
+function createInputCell(laneType, index, inputId) {
+    const cell = document.createElement('div');
+    cell.className = 'input-cell';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'lane-input';
+    input.min = '0';
+    input.max = '20';
+    input.id = inputId;
+
+    // Stop propagation of keys like Backspace/Delete while typing
+    input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+    });
+
+    input.addEventListener('input', () => {
+        let val = parseInt(input.value);
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 20) {
+            val = 20;
+            input.value = 20;
+        }
+        generateBlocksForInput(inputId, laneType, index, val);
+    });
+
+    cell.appendChild(input);
+    return cell;
+}
+
+// Spawns blocks extending away from the grid reactively
+function generateBlocksForInput(inputId, laneType, index, N) {
+    // 1. Remove previously generated blocks for this input ID
+    state.blocks = state.blocks.filter(b => {
+        if (b.generatedBy === inputId) {
+            const el = document.querySelector(`.block[data-id="${b.id}"]`);
+            if (el) el.remove();
+            return false;
+        }
+        return true;
+    });
+
+    // 2. Generate N new blocks
+    for (let i = 0; i < N; i++) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (laneType === 'top') {
+            targetX = index;
+            targetY = 19 - i; // Labeled cell is 19, then 18, 17, 16... (going up)
+        } else if (laneType === 'bottom') {
+            targetX = index;
+            targetY = 30 + i; // Labeled cell is 30, then 31, 32, 33... (going down)
+        } else if (laneType === 'left') {
+            targetX = 19 - i; // Labeled cell is 19, then 18, 17, 16... (going left)
+            targetY = index;
+        } else if (laneType === 'right') {
+            targetX = 30 + i; // Labeled cell is 30, then 31, 32, 33... (going right)
+            targetY = index;
+        }
+
+        // Spawn block object
+        const newBlock = {
+            id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            x: targetX,
+            y: targetY,
+            color: state.activeColor,
+            generatedBy: inputId
+        };
+
+        state.blocks.push(newBlock);
+        renderBlock(newBlock);
     }
 }
 
@@ -737,6 +846,11 @@ function onMouseUp(e) {
                 const newPos = proposedPositions[item.id];
                 blockObj.x = newPos.x;
                 blockObj.y = newPos.y;
+                
+                // Decouple generated block if it has been moved from its original coordinates
+                if (blockObj.generatedBy && (item.origX !== newPos.x || item.origY !== newPos.y)) {
+                    delete blockObj.generatedBy;
+                }
             }
 
             // Snap elements to their final grid coordinates

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experimental HTML-in-Canvas API Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #131b2e;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #2979ff;
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        header h1 {
+            margin: 0 0 8px 0;
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        header p {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 32px;
+        }
+
+        .instructions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .badge {
+            background-color: rgba(41, 121, 255, 0.15);
+            color: var(--accent-blue);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            align-self: flex-start;
+        }
+
+        .instructions h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        code {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #ff79c6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .demo-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* The Canvas Wrapper container */
+        .canvas-container {
+            position: relative;
+            background: #ffffff;
+            border: 2px solid var(--accent-blue);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(41, 121, 255, 0.25);
+            width: 350px;
+            height: 300px;
+        }
+
+        /* The Actual Canvas */
+        #demo-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Styling for the HTML elements residing inside the canvas layoutsubtree */
+        #html-source {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 300px;
+            padding: 24px;
+            box-sizing: border-box;
+            font-family: inherit;
+            color: #1e293b;
+            background-color: transparent;
+            pointer-events: auto; /* Interactive */
+            transform-origin: 0 0;
+        }
+
+        #html-source h3 {
+            margin: 0 0 12px 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        #html-source p {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #475569;
+            margin: 0 0 16px 0;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .form-group input {
+            padding: 8px 12px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .demo-btn {
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .demo-btn:hover {
+            background-color: #1a68eb;
+        }
+
+        .status-msg {
+            font-size: 0.8rem;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <span class="badge">Origin Trial Demo</span>
+            <h1>HTML-in-Canvas API</h1>
+            <p>Bringing full DOM interactivity, accessibility, and standard browser features inside a high-performance `<canvas>` element pixel grid.</p>
+        </header>
+
+        <div class="layout">
+            <div class="instructions">
+                <h3>Prerequisites to Try This Feature:</h3>
+                <ol>
+                    <li>Use <strong>Google Chrome Canary</strong> (v149 or later).</li>
+                    <li>Type <code>chrome://flags/#canvas-draw-element</code> in your address bar.</li>
+                    <li>Change the flag to <strong>Enabled</strong> and click <strong>Relaunch</strong>.</li>
+                    <li>If the flag is not enabled, the canvas will fall back to showing standard static HTML, but the interactive rendering code won't run.</li>
+                </ol>
+                <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-secondary);">
+                    <em>Note: Inspect this page's source code to see how the <code>layoutsubtree</code> attribute, <code>ResizeObserver</code>, and <code>drawElementImage</code> are implemented.</em>
+                </div>
+            </div>
+
+            <div class="demo-area">
+                <div class="canvas-container">
+                    <!-- Step 1: Add layoutsubtree attribute to the canvas tag -->
+                    <canvas id="demo-canvas" layoutsubtree>
+                        <!-- Nested HTML source content inside layoutsubtree -->
+                        <div id="html-source">
+                            <h3>DOM in Canvas!</h3>
+                            <p>Try typing in the box and clicking the button. Even though it is rendered inside a canvas pixel grid, it is fully interactive!</p>
+                            
+                            <div class="form-group">
+                                <label for="username">Your Name</label>
+                                <input type="text" id="username" placeholder="Type name here...">
+                            </div>
+
+                            <button id="alert-btn" class="demo-btn">Greet Me</button>
+                        </div>
+                    </canvas>
+                </div>
+                <div class="status-msg" id="support-status">Checking browser support...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('demo-canvas');
+        const ctx = canvas.getContext('2d');
+        const htmlSource = document.getElementById('html-source');
+        const alertBtn = document.getElementById('alert-btn');
+        const usernameInput = document.getElementById('username');
+        const supportStatus = document.getElementById('support-status');
+
+        // Check if browser supports the API
+        const isSupported = (typeof ctx.drawElementImage === 'function');
+        
+        if (isSupported) {
+            supportStatus.innerHTML = "✅ <strong>HTML-in-Canvas API is supported</strong> on this browser!";
+            supportStatus.style.color = "#22c55e";
+        } else {
+            supportStatus.innerHTML = "⚠️ <strong>API not supported</strong>. Go to <code>chrome://flags/#canvas-draw-element</code> to enable.";
+            supportStatus.style.color = "#ef4444";
+        }
+
+        // Add interactive actions
+        alertBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const name = usernameInput.value.trim() || 'Stranger';
+            alert(`Hello, ${name}! Natively triggered from HTML inside the Canvas!`);
+        });
+
+        // Step 2: Size the canvas grid to match Device Pixel Ratio
+        const observer = new ResizeObserver(([entry]) => {
+            const dpc = entry.devicePixelContentBoxSize;
+            canvas.width = dpc ? dpc[0].inlineSize : Math.round(entry.contentRect.width * window.devicePixelRatio);
+            canvas.height = dpc ? dpc[0].blockSize : Math.round(entry.contentRect.height * window.devicePixelRatio);
+            if (isSupported && canvas.requestPaint) {
+                canvas.requestPaint();
+            }
+        });
+
+        const supportsDevicePixelContentBox =
+            typeof ResizeObserverEntry !== 'undefined' &&
+            'devicePixelContentBoxSize' in ResizeObserverEntry.prototype;
+        const options = supportsDevicePixelContentBox ? { box: 'device-pixel-content-box' } : {};
+        observer.observe(canvas, options);
+
+        // Step 3: Handle the paint event and draw the element
+        if (isSupported) {
+            canvas.onpaint = () => {
+                ctx.reset();
+                
+                // Draw the HTML element at offset (0, 0)
+                const transform = ctx.drawElementImage(htmlSource, 0, 0);
+                
+                // Step 4: Synchronize spatial location so click/input mappings work
+                if (transform) {
+                    htmlSource.style.transform = transform.toString();
+                }
+            };
+        }
+    </script>
+</body>
+</html>

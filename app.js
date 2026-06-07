@@ -24,6 +24,7 @@ let state = {
     isPanning: false,      // Panning drag active
     isDraggingBlocks: false,// Block drag active
     isMarqueeSelecting: false, // Selection marquee active
+    isEditingText: false,  // Currently typing text inside a block
     multiSelectToggle: false, // Persistent multi-select mode (without Shift/Ctrl)
     panStartX: 0,
     panStartY: 0,
@@ -161,6 +162,20 @@ function setupColorSwatches() {
     });
 }
 
+// Helper to calculate high-contrast text color (black or white) based on background color
+function getContrastColor(colorVal) {
+    if (colorVal === 'transparent') return '#000000';
+    if (colorVal.startsWith('#')) {
+        const hex = colorVal.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+        return (yiq >= 140) ? '#000000' : '#ffffff';
+    }
+    return '#ffffff';
+}
+
 // Helper to apply color or transparent styling to a block element
 function applyBlockColor(element, color) {
     if (color === 'transparent') {
@@ -169,6 +184,12 @@ function applyBlockColor(element, color) {
     } else {
         element.className = 'block';
         element.style.backgroundColor = color;
+    }
+    
+    // Update inner text element color for contrast
+    const textEl = element.querySelector('.block-text');
+    if (textEl) {
+        textEl.style.color = getContrastColor(color);
     }
 }
 
@@ -314,6 +335,27 @@ function renderBlock(block) {
     blockEl.style.left = `${GRID_OFFSET_X + block.x * CELL_SIZE}px`;
     blockEl.style.top = `${GRID_OFFSET_Y + block.y * CELL_SIZE}px`;
     
+    // Create text container
+    const textEl = document.createElement('div');
+    textEl.className = 'block-text';
+    textEl.contentEditable = true;
+    textEl.textContent = block.text || '';
+    
+    // Prevent key triggers (Delete/Backspace) from removing blocks while typing
+    textEl.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+    });
+    
+    textEl.addEventListener('focus', () => {
+        state.isEditingText = true;
+    });
+    
+    textEl.addEventListener('blur', () => {
+        state.isEditingText = false;
+        block.text = textEl.textContent;
+    });
+    
+    blockEl.appendChild(textEl);
     applyBlockColor(blockEl, block.color);
 
     // Single click handler (to select & change colors)
@@ -436,6 +478,14 @@ let dragBlocksOrigPos = []; // [{ id, x, y, el, startLeft, startTop }]
 let activeDragAnchorId = null;
 
 function onMouseDown(e) {
+    // If typing text, do not initiate dragging/panning
+    if (state.isEditingText) return;
+    
+    // If clicking on focused text inside a block, bypass dragging
+    if (e.target.classList.contains('block-text') && document.activeElement === e.target) {
+        return;
+    }
+
     const isRightButton = e.button === 2;
     const isMiddleButton = e.button === 1;
     const isSpaceBarPressed = e.code === 'Space' || (e.type === 'keydown' && e.code === 'Space');

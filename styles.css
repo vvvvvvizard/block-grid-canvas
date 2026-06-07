@@ -1,0 +1,530 @@
+:root {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #131b2e;
+    --bg-tertiary: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-blue: #2979ff;
+    --accent-blue-glow: rgba(41, 121, 255, 0.3);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --canvas-bg: #ffffff;
+    --grid-line-color: rgba(0, 0, 0, 0.06);
+    --main-grid-border: rgba(0, 0, 0, 0.85);
+    --cell-size: 50px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header Styling */
+.app-header {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-dot {
+    width: 12px;
+    height: 12px;
+    background-color: var(--accent-blue);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent-blue);
+}
+
+.header-left h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* Floating Draggable Panel */
+.draggable-panel {
+    background: rgba(30, 41, 59, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    position: relative;
+    user-select: none;
+}
+
+.panel-handle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: grab;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-right: 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-handle:active {
+    cursor: grabbing;
+}
+
+.color-swatches {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.swatch:hover {
+    transform: scale(1.15);
+}
+
+.swatch.active {
+    border-color: var(--text-primary);
+    transform: scale(1.1);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.swatch[data-color="transparent"] {
+    background: linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 1px dashed rgba(255, 255, 255, 0.5);
+}
+
+/* Header Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--accent-blue);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #1a68eb;
+    box-shadow: 0 0 12px rgba(41, 121, 255, 0.4);
+}
+
+.btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover {
+    background-color: #2e3d52;
+}
+
+/* Floating Controls (Zoom, selection) */
+.floating-controls {
+    position: absolute;
+    bottom: 80px;
+    right: 24px;
+    background: rgba(30, 41, 59, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    z-index: 90;
+}
+
+.floating-controls button {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.floating-controls button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--accent-blue);
+}
+
+.floating-controls button.active {
+    background-color: var(--accent-blue);
+    color: white;
+}
+
+.control-divider {
+    width: 20px;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+#zoom-level {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 4px 0;
+}
+
+/* Workspace Frame */
+.workspace-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background-color: var(--bg-primary);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Canvas Window - resizable component */
+.canvas-window {
+    width: 80%;
+    height: 75vh;
+    min-width: 500px;
+    min-height: 400px;
+    background-color: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    position: relative;
+    resize: both;
+    overflow: hidden;
+}
+
+.window-titlebar {
+    background-color: #1e293b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: default;
+}
+
+.window-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot.red { background-color: #ef4444; }
+.dot.yellow { background-color: #eab308; }
+.dot.green { background-color: #22c55e; }
+
+.window-title {
+    color: var(--text-primary);
+}
+
+.window-status {
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* Canvas Viewport */
+.canvas-viewport {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background-color: #f1f5f9;
+    cursor: grab;
+}
+
+.canvas-viewport:active {
+    /* If panning */
+}
+
+/* Actual Canvas Content that gets Zoomed & Panned */
+.canvas-content {
+    position: absolute;
+    width: 3000px;
+    height: 3000px;
+    top: 50%;
+    left: 50%;
+    transform-origin: 0 0;
+    background-color: #f8fafc;
+}
+
+/* Grid Pattern Background across the whole canvas */
+.grid-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: var(--cell-size) var(--cell-size);
+    background-image: 
+        linear-gradient(to right, var(--grid-line-color) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line-color) 1px, transparent 1px);
+    pointer-events: none;
+}
+
+/* Grid Wrapper centering the 12x12 area */
+.grid-wrapper {
+    position: absolute;
+    width: calc(12 * var(--cell-size));
+    height: calc(12 * var(--cell-size));
+    background: transparent;
+    pointer-events: none;
+}
+
+/* The Main 10x10 Grid */
+.main-grid {
+    position: absolute;
+    left: var(--cell-size);
+    top: var(--cell-size);
+    width: calc(10 * var(--cell-size));
+    height: calc(10 * var(--cell-size));
+    border: 2px solid var(--main-grid-border);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+    background-color: white;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Grid label lanes (holding cells + numbers) */
+.grid-label-lane {
+    position: absolute;
+    display: flex;
+    pointer-events: auto; /* Allow clicking on label slots to select/interact if needed */
+    z-index: 2;
+}
+
+.label-left {
+    left: 0;
+    top: var(--cell-size);
+    width: var(--cell-size);
+    height: calc(10 * var(--cell-size));
+    flex-direction: column;
+}
+
+.label-right {
+    left: calc(11 * var(--cell-size));
+    top: var(--cell-size);
+    width: var(--cell-size);
+    height: calc(10 * var(--cell-size));
+    flex-direction: column;
+}
+
+.label-top {
+    left: var(--cell-size);
+    top: 0;
+    width: calc(10 * var(--cell-size));
+    height: var(--cell-size);
+    flex-direction: row;
+}
+
+.label-bottom {
+    left: var(--cell-size);
+    top: calc(11 * var(--cell-size));
+    width: calc(10 * var(--cell-size));
+    height: var(--cell-size);
+    flex-direction: row;
+}
+
+/* Label cells containing the numbers 1-10 */
+.label-cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(0, 0, 0, 0.15);
+    position: relative;
+    background-color: rgba(255, 255, 255, 0.5);
+    box-sizing: border-box;
+}
+
+/* Overlay Number Styling */
+.cell-number {
+    font-size: 14px;
+    font-weight: 900;
+    color: #000000;
+    position: absolute;
+    z-index: 15;
+    pointer-events: none;
+    text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; /* Ensure it is readable even on top of blocks */
+}
+
+/* Placed blocks container */
+.blocks-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Single draggable block */
+.block {
+    position: absolute;
+    width: var(--cell-size);
+    height: var(--cell-size);
+    border-radius: 4px;
+    cursor: grab;
+    pointer-events: auto;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    transition: box-shadow 0.15s, border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.block:active {
+    cursor: grabbing;
+}
+
+.block.selected {
+    box-shadow: 0 0 0 3px var(--accent-blue), 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 20 !important;
+}
+
+/* Special Transparent Visual block styles */
+.block.block-transparent {
+    background: linear-gradient(45deg, rgba(200, 200, 200, 0.15) 25%, transparent 25%),
+                linear-gradient(-45deg, rgba(200, 200, 200, 0.15) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(200, 200, 200, 0.15) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(200, 200, 200, 0.15) 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 2px dashed rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+/* Drag preview block */
+.drag-preview {
+    position: absolute;
+    width: var(--cell-size);
+    height: var(--cell-size);
+    background-color: var(--accent-blue-glow);
+    border: 2px dashed var(--accent-blue);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+}
+
+/* Selection marquee / bounding box */
+.selection-marquee {
+    position: absolute;
+    border: 1px dashed var(--accent-blue);
+    background-color: var(--accent-blue-glow);
+    pointer-events: none;
+    display: none;
+    z-index: 25;
+}
+
+/* Custom Resize Handle styling */
+.resize-handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    bottom: 0;
+    right: 0;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, var(--text-secondary) 50%);
+    border-bottom-right-radius: 12px;
+}
+
+/* Interactive Info Footer */
+.app-instructions {
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 24px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.app-instructions strong {
+    color: var(--text-primary);
+}
+
+/* Responsiveness overrides */
+@media (max-width: 900px) {
+    .app-header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
+    
+    .canvas-window {
+        width: 95%;
+        height: 60vh;
+    }
+}

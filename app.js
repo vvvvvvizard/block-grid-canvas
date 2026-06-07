@@ -331,7 +331,7 @@ function setupDraggablePanel(panel) {
 // Center the 12x12 grid inside the resizable viewport window
 function centerGrid() {
     const rect = viewport.getBoundingClientRect();
-    const fitSize = 14 * CELL_SIZE; // 14 cells includes labels and side padding
+    const fitSize = 20 * CELL_SIZE; // 20 cells to fit label lanes + spawned blocks + padding
     
     const zoomX = rect.width / fitSize;
     const zoomY = rect.height / fitSize;

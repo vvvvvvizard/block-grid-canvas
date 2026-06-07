@@ -10,12 +10,12 @@ const COLORS = [
     { name: 'Purple', value: '#a855f7' },
     { name: 'Pink', value: '#ec4899' },
     { name: 'Slate', value: '#475569' },
-    { name: 'Transparent', value: 'transparent' } // Glassmorphism option
+    { name: 'Transparent', value: 'transparent' }
 ];
 
 // App State
 let state = {
-    blocks: [],            // List of blocks: { id, x, y, color }
+    blocks: [],            // List of blocks: { id, x, y, color, text, generatedBy }
     selectedBlockIds: [],  // Currently selected block IDs
     activeColor: '#ef4444',// Current color from palette
     zoom: 1.0,             // Zoom multiplier
@@ -25,21 +25,39 @@ let state = {
     isDraggingBlocks: false,// Block drag active
     isMarqueeSelecting: false, // Selection marquee active
     isEditingText: false,  // Currently typing text inside a block
-    multiSelectToggle: false, // Persistent multi-select mode (without Shift/Ctrl)
+    multiSelectToggle: false, // Persistent multi-select mode
     panStartX: 0,
     panStartY: 0,
     dragStartX: 0,
     dragStartY: 0,
     marqueeStartX: 0,
-    marqueeStartY: 0
+    marqueeStartY: 0,
+    
+    // Dynamic Grid Sizing
+    gridWidth: 10,
+    gridHeight: 10,
+    // Store input values to preserve them during grid resizing
+    inputValues: {
+        top: {},
+        bottom: {},
+        left: {},
+        right: {}
+    }
 };
 
 // Config Constants
 const CELL_SIZE = 50;
 const CANVAS_WIDTH = 2500;
 const CANVAS_HEIGHT = 2500;
-const GRID_OFFSET_X = 0; // Absolute positioning is cellIndex * CELL_SIZE
-const GRID_OFFSET_Y = 0; // Absolute positioning is cellIndex * CELL_SIZE
+const GRID_OFFSET_X = 0;
+const GRID_OFFSET_Y = 0;
+
+// Dynamic Boundary Variables
+let startCol = 20;
+let endCol = 29;
+let startRow = 20;
+let endRow = 29;
+let OUTSIDE_SLOTS = []; // Outside label slots dynamically computed
 
 // DOM Elements
 const viewport = document.getElementById('canvas-viewport');
@@ -58,101 +76,119 @@ const selectionStatus = document.getElementById('selection-status');
 const selectionMarquee = document.getElementById('selection-marquee');
 const canvasWindow = document.getElementById('canvas-window');
 
-// 40 Outside Slots coordinate definitions (centered around x=20..29, y=20..29)
-const OUTSIDE_SLOTS = [];
-// Top: row = 19, col = 20..29
-for (let c = 20; c <= 29; c++) OUTSIDE_SLOTS.push({ x: c, y: 19 });
-// Left: col = 19, row = 20..29
-for (let r = 20; r <= 29; r++) OUTSIDE_SLOTS.push({ x: 19, y: r });
-// Bottom: row = 30, col = 20..29
-for (let c = 20; c <= 29; c++) OUTSIDE_SLOTS.push({ x: c, y: 30 });
-// Right: col = 30, row = 20..29
-for (let r = 20; r <= 29; r++) OUTSIDE_SLOTS.push({ x: 30, y: r });
-
 // Initialize the Application
 function init() {
-    setupNumbers();
-    setupInputLanes();
+    rebuildLanes();
     setupColorSwatches();
     setupEventListeners();
     setupDraggablePanel(colorPanel);
     
-    // Initial centering of the canvas grid
     setTimeout(() => {
         centerGrid();
     }, 50);
 }
 
-// Generate the bold numbers 1-10 on the 4 outside sides
-function setupNumbers() {
-    const labelLeft = document.getElementById('label-left');
-    const labelTop = document.getElementById('label-top');
-    const labelBottom = document.getElementById('label-bottom');
-    const labelRight = document.getElementById('label-right');
-
-    // Left vertical numbers: 1 to 10
-    for (let r = 1; r <= 10; r++) {
-        const cell = document.createElement('div');
-        cell.className = 'label-cell';
-        cell.innerHTML = `<span class="cell-number">${r}</span>`;
-        labelLeft.appendChild(cell);
-    }
-
-    // Top horizontal numbers: 1 to 10
-    for (let c = 1; c <= 10; c++) {
-        const cell = document.createElement('div');
-        cell.className = 'label-cell';
-        cell.innerHTML = `<span class="cell-number">${c}</span>`;
-        labelTop.appendChild(cell);
-    }
-
-    // Bottom horizontal numbers: 1 to 10
-    for (let c = 1; c <= 10; c++) {
-        const cell = document.createElement('div');
-        cell.className = 'label-cell';
-        cell.innerHTML = `<span class="cell-number">${c}</span>`;
-        labelBottom.appendChild(cell);
-    }
-
-    // Right vertical numbers: 1 to 10
-    for (let r = 1; r <= 10; r++) {
-        const cell = document.createElement('div');
-        cell.className = 'label-cell';
-        cell.innerHTML = `<span class="cell-number">${r}</span>`;
-        labelRight.appendChild(cell);
-    }
+// Calculate grid boundary variables based on grid size
+function updateGridBoundaries() {
+    startCol = Math.floor((50 - state.gridWidth) / 2);
+    endCol = startCol + state.gridWidth - 1;
+    startRow = Math.floor((50 - state.gridHeight) / 2);
+    endRow = startRow + state.gridHeight - 1;
+    
+    // Generate outside label slot coordinates
+    OUTSIDE_SLOTS = [];
+    // Top label lane
+    for (let c = startCol; c <= endCol; c++) OUTSIDE_SLOTS.push({ x: c, y: startRow - 1 });
+    // Left label lane
+    for (let r = startRow; r <= endRow; r++) OUTSIDE_SLOTS.push({ x: startCol - 1, y: r });
+    // Bottom label lane
+    for (let c = startCol; c <= endCol; c++) OUTSIDE_SLOTS.push({ x: c, y: endRow + 1 });
+    // Right label lane
+    for (let r = startRow; r <= endRow; r++) OUTSIDE_SLOTS.push({ x: endCol + 1, y: r });
 }
 
-// Generate the transparent input cells on the 4 outside sides
-function setupInputLanes() {
-    const inputLeft = document.getElementById('input-left');
-    const inputTop = document.getElementById('input-top');
-    const inputBottom = document.getElementById('input-bottom');
-    const inputRight = document.getElementById('input-right');
+// Reposition and resize grid elements dynamically
+function repositionGridElements() {
+    const mainGrid = document.getElementById('main-grid');
+    mainGrid.style.left = `${startCol * CELL_SIZE}px`;
+    mainGrid.style.top = `${startRow * CELL_SIZE}px`;
+    mainGrid.style.width = `${state.gridWidth * CELL_SIZE}px`;
+    mainGrid.style.height = `${state.gridHeight * CELL_SIZE}px`;
 
-    // Left vertical inputs (row index corresponds to y = 20..29)
-    for (let r = 20; r <= 29; r++) {
-        const cell = createInputCell('left', r, `input_left_${r}`);
-        inputLeft.appendChild(cell);
-    }
+    const lanes = [
+        { id: 'label-left',   left: startCol - 1, top: startRow,     width: 1,                 height: state.gridHeight,  dir: 'column' },
+        { id: 'label-top',    left: startCol,     top: startRow - 1, width: state.gridWidth,   height: 1,                 dir: 'row' },
+        { id: 'label-bottom', left: startCol,     top: endRow + 1,   width: state.gridWidth,   height: 1,                 dir: 'row' },
+        { id: 'label-right',  left: endCol + 1,   top: startRow,     width: 1,                 height: state.gridHeight,  dir: 'column' },
+        { id: 'input-left',   left: startCol - 2, top: startRow,     width: 1,                 height: state.gridHeight,  dir: 'column' },
+        { id: 'input-top',    left: startCol,     top: startRow - 2, width: state.gridWidth,   height: 1,                 dir: 'row' },
+        { id: 'input-bottom', left: startCol,     top: endRow + 2,   width: state.gridWidth,   height: 1,                 dir: 'row' },
+        { id: 'input-right',  left: endCol + 2,   top: startRow,     width: 1,                 height: state.gridHeight,  dir: 'column' }
+    ];
 
-    // Top horizontal inputs (col index corresponds to x = 20..29)
-    for (let c = 20; c <= 29; c++) {
-        const cell = createInputCell('top', c, `input_top_${c}`);
-        inputTop.appendChild(cell);
-    }
+    lanes.forEach(lane => {
+        const el = document.getElementById(lane.id);
+        if (el) {
+            el.style.left = `${lane.left * CELL_SIZE}px`;
+            el.style.top = `${lane.top * CELL_SIZE}px`;
+            el.style.width = `${lane.width * CELL_SIZE}px`;
+            el.style.height = `${lane.height * CELL_SIZE}px`;
+            el.style.flexDirection = lane.dir;
+        }
+    });
+}
 
-    // Bottom horizontal inputs (col index corresponds to x = 20..29)
-    for (let c = 20; c <= 29; c++) {
-        const cell = createInputCell('bottom', c, `input_bottom_${c}`);
-        inputBottom.appendChild(cell);
-    }
+// Rebuild label lanes and inputs
+function rebuildLanes() {
+    updateGridBoundaries();
+    repositionGridElements();
 
-    // Right vertical inputs (row index corresponds to y = 20..29)
-    for (let r = 20; r <= 29; r++) {
-        const cell = createInputCell('right', r, `input_right_${r}`);
-        inputRight.appendChild(cell);
-    }
+    const laneConfigs = [
+        { type: 'left',   labelEl: 'label-left',   inputEl: 'input-left',   count: state.gridHeight, startIdx: startRow },
+        { type: 'top',    labelEl: 'label-top',    inputEl: 'input-top',    count: state.gridWidth,  startIdx: startCol },
+        { type: 'bottom', labelEl: 'label-bottom', inputEl: 'input-bottom', count: state.gridWidth,  startIdx: startCol },
+        { type: 'right',  labelEl: 'label-right',  inputEl: 'input-right',  count: state.gridHeight, startIdx: startRow }
+    ];
+
+    // Clear blocks previously spawned by input lanes, as their coords will shift
+    state.blocks = state.blocks.filter(b => !b.generatedBy);
+
+    laneConfigs.forEach(cfg => {
+        const lblContainer = document.getElementById(cfg.labelEl);
+        const inpContainer = document.getElementById(cfg.inputEl);
+        if (!lblContainer || !inpContainer) return;
+
+        lblContainer.innerHTML = '';
+        inpContainer.innerHTML = '';
+
+        for (let i = 0; i < cfg.count; i++) {
+            const numVal = i + 1;
+            const labelCell = document.createElement('div');
+            labelCell.className = 'label-cell';
+            labelCell.innerHTML = `<span class="cell-number">${numVal}</span>`;
+            lblContainer.appendChild(labelCell);
+
+            const coordIndex = cfg.startIdx + i;
+            const inputId = `input_${cfg.type}_${coordIndex}`;
+            const inputCell = createInputCell(cfg.type, coordIndex, inputId);
+            inpContainer.appendChild(inputCell);
+
+            // Restore any stored values for this lane
+            const savedVal = state.inputValues[cfg.type][coordIndex];
+            if (savedVal > 0) {
+                const inputEl = inputCell.querySelector('.lane-input');
+                inputEl.value = savedVal;
+                generateBlocksForInput(inputId, cfg.type, coordIndex, savedVal, false);
+            }
+        }
+    });
+
+    refreshAllBlocksDOM();
+}
+
+function refreshAllBlocksDOM() {
+    blocksContainer.innerHTML = '';
+    state.blocks.forEach(renderBlock);
 }
 
 // Helper to create an input cell element with key and input events
@@ -168,9 +204,7 @@ function createInputCell(laneType, index, inputId) {
     input.id = inputId;
 
     // Stop propagation of keys like Backspace/Delete while typing
-    input.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-    });
+    input.addEventListener('keydown', (e) => e.stopPropagation());
 
     input.addEventListener('input', () => {
         let val = parseInt(input.value);
@@ -179,20 +213,31 @@ function createInputCell(laneType, index, inputId) {
             val = 20;
             input.value = 20;
         }
-        generateBlocksForInput(inputId, laneType, index, val);
+        state.inputValues[laneType][index] = val;
+        generateBlocksForInput(inputId, laneType, index, val, true);
     });
 
     cell.appendChild(input);
     return cell;
 }
 
+// Spawning offset calculator
+const DIRECTION_OFFSETS = {
+    top:    (index, i) => ({ x: index, y: (startRow - 1) - i }),
+    bottom: (index, i) => ({ x: index, y: (endRow + 1) + i }),
+    left:   (index, i) => ({ x: (startCol - 1) - i, y: index }),
+    right:  (index, i) => ({ x: (endCol + 1) + i, y: index })
+};
+
 // Spawns blocks extending away from the grid reactively
-function generateBlocksForInput(inputId, laneType, index, N) {
+function generateBlocksForInput(inputId, laneType, index, N, shouldRender = true) {
     // 1. Remove previously generated blocks for this input ID
     state.blocks = state.blocks.filter(b => {
         if (b.generatedBy === inputId) {
-            const el = document.querySelector(`.block[data-id="${b.id}"]`);
-            if (el) el.remove();
+            if (shouldRender) {
+                const el = document.querySelector(`.block[data-id="${b.id}"]`);
+                if (el) el.remove();
+            }
             return false;
         }
         return true;
@@ -200,38 +245,23 @@ function generateBlocksForInput(inputId, laneType, index, N) {
 
     // 2. Generate N new blocks
     for (let i = 0; i < N; i++) {
-        let targetX = 0;
-        let targetY = 0;
-
-        if (laneType === 'top') {
-            targetX = index;
-            targetY = 19 - i; // Labeled cell is 19, then 18, 17, 16... (going up)
-        } else if (laneType === 'bottom') {
-            targetX = index;
-            targetY = 30 + i; // Labeled cell is 30, then 31, 32, 33... (going down)
-        } else if (laneType === 'left') {
-            targetX = 19 - i; // Labeled cell is 19, then 18, 17, 16... (going left)
-            targetY = index;
-        } else if (laneType === 'right') {
-            targetX = 30 + i; // Labeled cell is 30, then 31, 32, 33... (going right)
-            targetY = index;
-        }
+        const { x, y } = DIRECTION_OFFSETS[laneType](index, i);
 
         // Spawn block object
         const newBlock = {
             id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-            x: targetX,
-            y: targetY,
+            x,
+            y,
             color: state.activeColor,
             generatedBy: inputId
         };
 
         state.blocks.push(newBlock);
-        renderBlock(newBlock);
+        if (shouldRender) renderBlock(newBlock);
     }
 }
 
-// Setup the 11 Color swatches in the panel
+// Setup the color swatches in the panel
 function setupColorSwatches() {
     colorSwatches.innerHTML = '';
     COLORS.forEach(color => {
@@ -259,9 +289,7 @@ function setupColorSwatches() {
                     if (block) {
                         block.color = color.value;
                         const blockEl = document.querySelector(`.block[data-id="${id}"]`);
-                        if (blockEl) {
-                            applyBlockColor(blockEl, color.value);
-                        }
+                        if (blockEl) applyBlockColor(blockEl, color.value);
                     }
                 });
             }
@@ -271,7 +299,7 @@ function setupColorSwatches() {
     });
 }
 
-// Helper to calculate high-contrast text color (black or white) based on background color
+// Helper to calculate high-contrast text color
 function getContrastColor(colorVal) {
     if (colorVal === 'transparent') return '#000000';
     if (colorVal.startsWith('#')) {
@@ -285,7 +313,7 @@ function getContrastColor(colorVal) {
     return '#ffffff';
 }
 
-// Helper to apply color or transparent styling to a block element
+// Helper to apply color styling to a block element
 function applyBlockColor(element, color) {
     if (color === 'transparent') {
         element.className = 'block block-transparent';
@@ -295,11 +323,8 @@ function applyBlockColor(element, color) {
         element.style.backgroundColor = color;
     }
     
-    // Update inner text element color for contrast
     const textEl = element.querySelector('.block-text');
-    if (textEl) {
-        textEl.style.color = getContrastColor(color);
-    }
+    if (textEl) textEl.style.color = getContrastColor(color);
 }
 
 // Make a panel draggable
@@ -328,10 +353,11 @@ function setupDraggablePanel(panel) {
     }
 }
 
-// Center the 12x12 grid inside the resizable viewport window
+// Center the grid inside the resizable viewport window
 function centerGrid() {
     const rect = viewport.getBoundingClientRect();
-    const fitSize = 20 * CELL_SIZE; // 20 cells to fit label lanes + spawned blocks + padding
+    const fitCells = Math.max(state.gridWidth, state.gridHeight) + 10;
+    const fitSize = fitCells * CELL_SIZE;
     
     const zoomX = rect.width / fitSize;
     const zoomY = rect.height / fitSize;
@@ -342,7 +368,7 @@ function centerGrid() {
     updateCanvasTransform();
 }
 
-// Render the zoom and pan transitions on the canvas content container
+// Render the zoom and pan transitions
 function updateCanvasTransform() {
     content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
     zoomLevelText.textContent = `${Math.round(state.zoom * 100)}%`;
@@ -361,7 +387,7 @@ function screenToCanvas(clientX, clientY) {
     };
 }
 
-// Update the Selection status text in the window bar
+// Update the Selection status text
 function updateSelectionUI() {
     if (state.selectedBlockIds.length === 0) {
         selectionStatus.textContent = 'No selection';
@@ -370,36 +396,29 @@ function updateSelectionUI() {
         selectionStatus.textContent = `${state.selectedBlockIds.length} block(s) selected`;
     }
 
-    // Refresh outlines
     document.querySelectorAll('.block').forEach(blockEl => {
         const id = blockEl.dataset.id;
-        if (state.selectedBlockIds.includes(id)) {
-            blockEl.classList.add('selected');
-        } else {
-            blockEl.classList.remove('selected');
-        }
+        blockEl.classList.toggle('selected', state.selectedBlockIds.includes(id));
     });
 }
 
-// Add a block to the canvas
+// Add a block sequentially
 function addBlock() {
-    // 1. Check the 40 outside slots in order
     let targetSlot = null;
+    
+    // 1. Check label outside slots
     for (let slot of OUTSIDE_SLOTS) {
-        // Is slot occupied?
-        const occupied = state.blocks.some(b => b.x === slot.x && b.y === slot.y);
-        if (!occupied) {
+        if (!state.blocks.some(b => b.x === slot.x && b.y === slot.y)) {
             targetSlot = slot;
             break;
         }
     }
 
-    // 2. If no outside slot is empty, check the 100 cells of the main grid (20..29)
+    // 2. Scan main grid
     if (!targetSlot) {
-        for (let y = 20; y <= 29; y++) {
-            for (let x = 20; x <= 29; x++) {
-                const occupied = state.blocks.some(b => b.x === x && b.y === y);
-                if (!occupied) {
+        for (let y = startRow; y <= endRow; y++) {
+            for (let x = startCol; x <= endCol; x++) {
+                if (!state.blocks.some(b => b.x === x && b.y === y)) {
                     targetSlot = { x, y };
                     break;
                 }
@@ -408,17 +427,17 @@ function addBlock() {
         }
     }
 
-    // 3. Fallback: place in some nearby spot if fully crowded
+    // 3. Fallback: extend leftwards from outside lane
     if (!targetSlot) {
-        let i = 18;
+        let i = startCol - 3;
         while (!targetSlot) {
-            const occupied = state.blocks.some(b => b.x === i && b.y === 20);
-            if (!occupied) targetSlot = { x: i, y: 20 };
+            if (!state.blocks.some(b => b.x === i && b.y === startRow)) {
+                targetSlot = { x: i, y: startRow };
+            }
             i--;
         }
     }
 
-    // Create block object
     const newBlock = {
         id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
         x: targetSlot.x,
@@ -429,7 +448,6 @@ function addBlock() {
     state.blocks.push(newBlock);
     renderBlock(newBlock);
 
-    // Auto-select the newly added block
     state.selectedBlockIds = [newBlock.id];
     updateSelectionUI();
 }
@@ -439,26 +457,16 @@ function renderBlock(block) {
     const blockEl = document.createElement('div');
     blockEl.className = 'block';
     blockEl.dataset.id = block.id;
-    
-    // Position
     blockEl.style.left = `${GRID_OFFSET_X + block.x * CELL_SIZE}px`;
     blockEl.style.top = `${GRID_OFFSET_Y + block.y * CELL_SIZE}px`;
     
-    // Create text container
     const textEl = document.createElement('div');
     textEl.className = 'block-text';
     textEl.contentEditable = true;
     textEl.textContent = block.text || '';
     
-    // Prevent key triggers (Delete/Backspace) from removing blocks while typing
-    textEl.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-    });
-    
-    textEl.addEventListener('focus', () => {
-        state.isEditingText = true;
-    });
-    
+    textEl.addEventListener('keydown', (e) => e.stopPropagation());
+    textEl.addEventListener('focus', () => { state.isEditingText = true; });
     textEl.addEventListener('blur', () => {
         state.isEditingText = false;
         block.text = textEl.textContent;
@@ -467,13 +475,9 @@ function renderBlock(block) {
     blockEl.appendChild(textEl);
     applyBlockColor(blockEl, block.color);
 
-    // Single click handler (to select & change colors)
     blockEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        
-        // Multi-select modifier check (Shift, Ctrl, or MultiSelectToggle)
         const isMulti = e.shiftKey || e.ctrlKey || state.multiSelectToggle;
-        
         if (isMulti) {
             if (state.selectedBlockIds.includes(block.id)) {
                 state.selectedBlockIds = state.selectedBlockIds.filter(id => id !== block.id);
@@ -483,42 +487,38 @@ function renderBlock(block) {
         } else {
             state.selectedBlockIds = [block.id];
         }
-        
         updateSelectionUI();
     });
 
     blocksContainer.appendChild(blockEl);
 }
 
-// Clear all blocks
+// Clear all blocks and inputs
 function clearAll() {
     state.blocks = [];
     state.selectedBlockIds = [];
+    state.inputValues = { top: {}, bottom: {}, left: {}, right: {} };
     blocksContainer.innerHTML = '';
+    
+    document.querySelectorAll('.lane-input').forEach(input => {
+        input.value = '';
+    });
+    
     updateSelectionUI();
 }
 
 // Zoom utility
 function adjustZoom(factor, clientX = null, clientY = null) {
     const prevZoom = state.zoom;
-    let newZoom = state.zoom * factor;
-    // Limit bounds
-    newZoom = Math.max(0.3, Math.min(3.0, newZoom));
+    let newZoom = Math.max(0.3, Math.min(3.0, state.zoom * factor));
     
     const rect = viewport.getBoundingClientRect();
     const viewWidth = rect.width;
     const viewHeight = rect.height;
 
-    let anchorX, anchorY;
-    if (clientX !== null && clientY !== null) {
-        anchorX = clientX - rect.left;
-        anchorY = clientY - rect.top;
-    } else {
-        anchorX = viewWidth / 2;
-        anchorY = viewHeight / 2;
-    }
+    let anchorX = (clientX !== null) ? (clientX - rect.left) : (viewWidth / 2);
+    let anchorY = (clientY !== null) ? (clientY - rect.top) : (viewHeight / 2);
 
-    // Calculate workspace coordinates before zoom
     const cx = (anchorX - viewWidth / 2 - state.panX) / prevZoom + 1250;
     const cy = (anchorY - viewHeight / 2 - state.panY) / prevZoom + 1250;
 
@@ -531,79 +531,84 @@ function adjustZoom(factor, clientX = null, clientY = null) {
 
 // Setup Keyboard, Mouse, and Window drag listeners
 function setupEventListeners() {
-    // 1. Add / Clear Buttons
     addBlockBtn.addEventListener('click', addBlock);
     clearBtn.addEventListener('click', clearAll);
 
-    // 2. Zoom Control Panel
     zoomInBtn.addEventListener('click', () => adjustZoom(1.2));
     zoomOutBtn.addEventListener('click', () => adjustZoom(1 / 1.2));
     zoomFitBtn.addEventListener('click', centerGrid);
     
-    // Toggle Multi-Select Mode button
     multiselectToggleBtn.addEventListener('click', () => {
         state.multiSelectToggle = !state.multiSelectToggle;
         multiselectToggleBtn.classList.toggle('active', state.multiSelectToggle);
     });
 
-    // 3. Mouse Wheel Zoom
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : (1 / 1.1);
-        adjustZoom(factor, e.clientX, e.clientY);
+        adjustZoom(e.deltaY < 0 ? 1.1 : (1 / 1.1), e.clientX, e.clientY);
     }, { passive: false });
 
-    // 4. Global Viewport Interactivity (Panning, Dragging blocks, Marquee Select)
     viewport.addEventListener('mousedown', onMouseDown);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
 
-    // Keyboard controls (e.g. Delete keys to remove selected blocks)
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (state.selectedBlockIds.length > 0) {
-                state.blocks = state.blocks.filter(b => {
-                    if (state.selectedBlockIds.includes(b.id)) {
-                        const el = document.querySelector(`.block[data-id="${b.id}"]`);
-                        if (el) el.remove();
-                        return false;
-                    }
-                    return true;
-                });
-                state.selectedBlockIds = [];
-                updateSelectionUI();
-            }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedBlockIds.length > 0) {
+            state.blocks = state.blocks.filter(b => {
+                if (state.selectedBlockIds.includes(b.id)) {
+                    const el = document.querySelector(`.block[data-id="${b.id}"]`);
+                    if (el) el.remove();
+                    return false;
+                }
+                return true;
+            });
+            state.selectedBlockIds = [];
+            updateSelectionUI();
         }
     });
 
-    // Prevent right-click context menu on canvas so it can be used for panning
-    viewport.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-    });
+    viewport.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Sizing Inputs Change Handlers
+    const widthInput = document.getElementById('grid-width-input');
+    const heightInput = document.getElementById('grid-height-input');
+
+    const handleResize = () => {
+        let w = parseInt(widthInput.value);
+        let h = parseInt(heightInput.value);
+        w = isNaN(w) || w < 2 ? 2 : (w > 24 ? 24 : w);
+        h = isNaN(h) || h < 2 ? 2 : (h > 24 ? 24 : h);
+
+        widthInput.value = w;
+        heightInput.value = h;
+
+        if (state.gridWidth !== w || state.gridHeight !== h) {
+            state.gridWidth = w;
+            state.gridHeight = h;
+            rebuildLanes();
+            centerGrid();
+        }
+    };
+
+    widthInput.addEventListener('change', handleResize);
+    heightInput.addEventListener('change', handleResize);
 }
 
 // Drag States Variables
-let dragBlocksOrigPos = []; // [{ id, x, y, el, startLeft, startTop }]
+let dragBlocksOrigPos = [];
 let activeDragAnchorId = null;
+let dragPreviews = {};
 
 function onMouseDown(e) {
-    // If typing text, do not initiate dragging/panning
     if (state.isEditingText) return;
-    
-    // If clicking on focused text inside a block, bypass dragging
-    if (e.target.classList.contains('block-text') && document.activeElement === e.target) {
-        return;
-    }
+    if (e.target.classList.contains('block-text') && document.activeElement === e.target) return;
 
     const isRightButton = e.button === 2;
     const isMiddleButton = e.button === 1;
-    const isSpaceBarPressed = e.code === 'Space' || (e.type === 'keydown' && e.code === 'Space');
-    
-    // Check if clicking a block
     const blockEl = e.target.closest('.block');
 
-    // Case A: Pan Mode (Right click, Middle click, Space+Left click)
-    if (isRightButton || isMiddleButton || e.spaceKey || (e.button === 0 && e.shiftKey === false && e.ctrlKey === false && !blockEl && state.multiSelectToggle === false && e.altKey)) {
+    // Case A: Pan Mode
+    if (isRightButton || isMiddleButton || e.spaceKey || (e.button === 0 && !blockEl && e.altKey)) {
         state.isPanning = true;
         state.panStartX = e.clientX - state.panX;
         state.panStartY = e.clientY - state.panY;
@@ -614,15 +619,9 @@ function onMouseDown(e) {
     // Case B: Left Click and Dragging Block(s)
     if (e.button === 0 && blockEl) {
         const blockId = blockEl.dataset.id;
-        
-        // If block is not selected, select it (unless adding to selection)
         const isMulti = e.shiftKey || e.ctrlKey || state.multiSelectToggle;
         if (!state.selectedBlockIds.includes(blockId)) {
-            if (isMulti) {
-                state.selectedBlockIds.push(blockId);
-            } else {
-                state.selectedBlockIds = [blockId];
-            }
+            state.selectedBlockIds = isMulti ? [...state.selectedBlockIds, blockId] : [blockId];
             updateSelectionUI();
         }
 
@@ -633,24 +632,21 @@ function onMouseDown(e) {
         state.dragStartX = canvasMouse.x;
         state.dragStartY = canvasMouse.y;
 
-        // Remember initial offsets & positions for all selected blocks
         dragBlocksOrigPos = state.selectedBlockIds.map(id => {
             const blockObj = state.blocks.find(b => b.id === id);
             const el = document.querySelector(`.block[data-id="${id}"]`);
             return {
-                id: id,
+                id,
                 origX: blockObj.x,
                 origY: blockObj.y,
-                el: el,
+                el,
                 startLeft: parseFloat(el.style.left),
                 startTop: parseFloat(el.style.top)
             };
         });
 
-        // Add visual grabbing styling
         dragBlocksOrigPos.forEach(item => {
             item.el.style.cursor = 'grabbing';
-            // Show previews
             createDragPreview(item.id, item.origX, item.origY);
         });
 
@@ -665,7 +661,6 @@ function onMouseDown(e) {
         state.marqueeStartX = canvasMouse.x;
         state.marqueeStartY = canvasMouse.y;
 
-        // Clear selection unless holding multi-select modifiers
         const isMulti = e.shiftKey || e.ctrlKey || state.multiSelectToggle;
         if (!isMulti) {
             state.selectedBlockIds = [];
@@ -682,9 +677,6 @@ function onMouseDown(e) {
     }
 }
 
-// Previews map
-let dragPreviews = {}; // { blockId: previewElement }
-
 function createDragPreview(id, x, y) {
     if (dragPreviews[id]) return;
     
@@ -699,7 +691,6 @@ function createDragPreview(id, x, y) {
 }
 
 function updateDragPreviews(snappedCoords) {
-    // snappedCoords: { id: {x, y} }
     Object.keys(snappedCoords).forEach(id => {
         const preview = dragPreviews[id];
         if (preview) {
@@ -716,7 +707,6 @@ function clearDragPreviews() {
 }
 
 function onMouseMove(e) {
-    // Handle Canvas Panning
     if (state.isPanning) {
         state.panX = e.clientX - state.panStartX;
         state.panY = e.clientY - state.panStartY;
@@ -724,7 +714,6 @@ function onMouseMove(e) {
         return;
     }
 
-    // Handle Dragging Blocks
     if (state.isDraggingBlocks) {
         const canvasMouse = screenToCanvas(e.clientX, e.clientY);
         const dx = canvasMouse.x - state.dragStartX;
@@ -732,25 +721,21 @@ function onMouseMove(e) {
 
         let snappedCoords = {};
 
-        // 1. Move the elements in real-time and calculate their snap-to coordinates
         dragBlocksOrigPos.forEach(item => {
             const currentLeft = item.startLeft + dx;
             const currentTop = item.startTop + dy;
             item.el.style.left = `${currentLeft}px`;
             item.el.style.top = `${currentTop}px`;
 
-            // Snapped target coordinates
             const snappedX = Math.round((currentLeft - GRID_OFFSET_X) / CELL_SIZE);
             const snappedY = Math.round((currentTop - GRID_OFFSET_Y) / CELL_SIZE);
             snappedCoords[item.id] = { x: snappedX, y: snappedY };
         });
 
-        // 2. Display snapped dashed preview frames
         updateDragPreviews(snappedCoords);
         return;
     }
 
-    // Handle Marquee Selecting
     if (state.isMarqueeSelecting) {
         const canvasMouse = screenToCanvas(e.clientX, e.clientY);
         
@@ -764,7 +749,6 @@ function onMouseMove(e) {
         selectionMarquee.style.width = `${width}px`;
         selectionMarquee.style.height = `${height}px`;
 
-        // Check intersections with all blocks
         const marqueeBox = { left, top, right: left + width, bottom: top + height };
         
         state.blocks.forEach(block => {
@@ -783,11 +767,10 @@ function onMouseMove(e) {
                                  blockBox.bottom <= marqueeBox.top);
 
             const blockEl = document.querySelector(`.block[data-id="${block.id}"]`);
-            if (intersects) {
-                blockEl.classList.add('selected');
-            } else {
-                // If not in the selected list originally, remove class
-                if (!state.selectedBlockIds.includes(block.id)) {
+            if (blockEl) {
+                if (intersects) {
+                    blockEl.classList.add('selected');
+                } else if (!state.selectedBlockIds.includes(block.id)) {
                     blockEl.classList.remove('selected');
                 }
             }
@@ -809,7 +792,6 @@ function onMouseUp(e) {
         const dx = canvasMouse.x - state.dragStartX;
         const dy = canvasMouse.y - state.dragStartY;
 
-        // Calculate final snap positions
         let proposedPositions = {};
         let overlapDetected = false;
 
@@ -822,43 +804,36 @@ function onMouseUp(e) {
             proposedPositions[item.id] = { x: snappedX, y: snappedY };
         });
 
-        // Collision Check: proposed spots vs non-selected blocks
         const nonSelectedBlocks = state.blocks.filter(b => !state.selectedBlockIds.includes(b.id));
 
         for (let itemId of Object.keys(proposedPositions)) {
             const pos = proposedPositions[itemId];
-            
-            // Overlaps with any stationary block?
-            const isOverlap = nonSelectedBlocks.some(b => b.x === pos.x && b.y === pos.y);
-            if (isOverlap) {
+            if (nonSelectedBlocks.some(b => b.x === pos.x && b.y === pos.y)) {
                 overlapDetected = true;
                 break;
             }
         }
 
-        // Apply new positions or revert if collision happens
         dragBlocksOrigPos.forEach(item => {
             const blockObj = state.blocks.find(b => b.id === item.id);
             item.el.style.cursor = 'grab';
 
             if (!overlapDetected) {
-                // Set new positions
                 const newPos = proposedPositions[item.id];
-                blockObj.x = newPos.x;
-                blockObj.y = newPos.y;
                 
                 // Decouple generated block if it has been moved from its original coordinates
-                if (blockObj.generatedBy && (item.origX !== newPos.x || item.origY !== newPos.y)) {
+                if (blockObj.generatedBy && (blockObj.x !== newPos.x || blockObj.y !== newPos.y)) {
                     delete blockObj.generatedBy;
                 }
+
+                blockObj.x = newPos.x;
+                blockObj.y = newPos.y;
             }
 
-            // Snap elements to their final grid coordinates
             item.el.style.left = `${GRID_OFFSET_X + blockObj.x * CELL_SIZE}px`;
             item.el.style.top = `${GRID_OFFSET_Y + blockObj.y * CELL_SIZE}px`;
         });
 
-        // Red flash to indicate collision/reversion
         if (overlapDetected) {
             dragBlocksOrigPos.forEach(item => {
                 item.el.style.borderColor = '#ef4444';
@@ -878,7 +853,6 @@ function onMouseUp(e) {
         state.isMarqueeSelecting = false;
         selectionMarquee.style.display = 'none';
 
-        // Read marquee coordinates
         const left = parseFloat(selectionMarquee.style.left);
         const top = parseFloat(selectionMarquee.style.top);
         const width = parseFloat(selectionMarquee.style.width);
@@ -886,7 +860,6 @@ function onMouseUp(e) {
 
         const marqueeBox = { left, top, right: left + width, bottom: top + height };
         
-        // Finalize selection list
         state.blocks.forEach(block => {
             const blockLeft = GRID_OFFSET_X + block.x * CELL_SIZE;
             const blockTop = GRID_OFFSET_Y + block.y * CELL_SIZE;
@@ -902,10 +875,8 @@ function onMouseUp(e) {
                                  blockBox.top >= marqueeBox.bottom ||
                                  blockBox.bottom <= marqueeBox.top);
 
-            if (intersects) {
-                if (!state.selectedBlockIds.includes(block.id)) {
-                    state.selectedBlockIds.push(block.id);
-                }
+            if (intersects && !state.selectedBlockIds.includes(block.id)) {
+                state.selectedBlockIds.push(block.id);
             }
         });
 

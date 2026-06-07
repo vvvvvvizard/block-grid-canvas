@@ -312,8 +312,8 @@ body {
 /* Actual Canvas Content that gets Zoomed & Panned */
 .canvas-content {
     position: relative;
-    width: 3000px;
-    height: 3000px;
+    width: 2500px;
+    height: 2500px;
     transform-origin: center center;
     background-color: #f8fafc;
     flex-shrink: 0;
@@ -333,20 +333,20 @@ body {
     pointer-events: none;
 }
 
-/* Grid Wrapper centering the 12x12 area */
+/* Grid Wrapper centering the 50x50 area */
 .grid-wrapper {
     position: absolute;
-    width: calc(12 * var(--cell-size));
-    height: calc(12 * var(--cell-size));
+    width: calc(50 * var(--cell-size));
+    height: calc(50 * var(--cell-size));
     background: transparent;
     pointer-events: none;
 }
 
-/* The Main 10x10 Grid */
+/* The Main 10x10 Grid (Centered at x=20..29, y=20..29) */
 .main-grid {
     position: absolute;
-    left: var(--cell-size);
-    top: var(--cell-size);
+    left: calc(20 * var(--cell-size));
+    top: calc(20 * var(--cell-size));
     width: calc(10 * var(--cell-size));
     height: calc(10 * var(--cell-size));
     border: 2px solid var(--main-grid-border);
@@ -365,32 +365,32 @@ body {
 }
 
 .label-left {
-    left: 0;
-    top: var(--cell-size);
+    left: calc(19 * var(--cell-size));
+    top: calc(20 * var(--cell-size));
     width: var(--cell-size);
     height: calc(10 * var(--cell-size));
     flex-direction: column;
 }
 
 .label-right {
-    left: calc(11 * var(--cell-size));
-    top: var(--cell-size);
+    left: calc(30 * var(--cell-size));
+    top: calc(20 * var(--cell-size));
     width: var(--cell-size);
     height: calc(10 * var(--cell-size));
     flex-direction: column;
 }
 
 .label-top {
-    left: var(--cell-size);
-    top: 0;
+    left: calc(20 * var(--cell-size));
+    top: calc(19 * var(--cell-size));
     width: calc(10 * var(--cell-size));
     height: var(--cell-size);
     flex-direction: row;
 }
 
 .label-bottom {
-    left: var(--cell-size);
-    top: calc(11 * var(--cell-size));
+    left: calc(20 * var(--cell-size));
+    top: calc(30 * var(--cell-size));
     width: calc(10 * var(--cell-size));
     height: var(--cell-size);
     flex-direction: row;

@@ -35,10 +35,10 @@ let state = {
 
 // Config Constants
 const CELL_SIZE = 50;
-const CANVAS_WIDTH = 3000;
-const CANVAS_HEIGHT = 3000;
-const GRID_OFFSET_X = 1200; // Left offset to center the 12x12 grid inside the 3000x3000px canvas
-const GRID_OFFSET_Y = 1200; // Top offset to center the 12x12 grid inside the 3000x3000px canvas
+const CANVAS_WIDTH = 2500;
+const CANVAS_HEIGHT = 2500;
+const GRID_OFFSET_X = 0; // Absolute positioning is cellIndex * CELL_SIZE
+const GRID_OFFSET_Y = 0; // Absolute positioning is cellIndex * CELL_SIZE
 
 // DOM Elements
 const viewport = document.getElementById('canvas-viewport');
@@ -57,16 +57,16 @@ const selectionStatus = document.getElementById('selection-status');
 const selectionMarquee = document.getElementById('selection-marquee');
 const canvasWindow = document.getElementById('canvas-window');
 
-// 40 Outside Slots coordinate definitions
+// 40 Outside Slots coordinate definitions (centered around x=20..29, y=20..29)
 const OUTSIDE_SLOTS = [];
-// Top: row = 0, col = 1..10
-for (let c = 1; c <= 10; c++) OUTSIDE_SLOTS.push({ x: c, y: 0 });
-// Left: col = 0, row = 1..10
-for (let r = 1; r <= 10; r++) OUTSIDE_SLOTS.push({ x: 0, y: r });
-// Bottom: row = 11, col = 1..10
-for (let c = 1; c <= 10; c++) OUTSIDE_SLOTS.push({ x: c, y: 11 });
-// Right: col = 11, row = 1..10
-for (let r = 1; r <= 10; r++) OUTSIDE_SLOTS.push({ x: 11, y: r });
+// Top: row = 19, col = 20..29
+for (let c = 20; c <= 29; c++) OUTSIDE_SLOTS.push({ x: c, y: 19 });
+// Left: col = 19, row = 20..29
+for (let r = 20; r <= 29; r++) OUTSIDE_SLOTS.push({ x: 19, y: r });
+// Bottom: row = 30, col = 20..29
+for (let c = 20; c <= 29; c++) OUTSIDE_SLOTS.push({ x: c, y: 30 });
+// Right: col = 30, row = 20..29
+for (let r = 20; r <= 29; r++) OUTSIDE_SLOTS.push({ x: 30, y: r });
 
 // Initialize the Application
 function init() {
@@ -220,8 +220,8 @@ function screenToCanvas(clientX, clientY) {
     const viewWidth = rect.width;
     const viewHeight = rect.height;
     return {
-        x: (viewX - viewWidth / 2 - state.panX) / state.zoom + 1500,
-        y: (viewY - viewHeight / 2 - state.panY) / state.zoom + 1500
+        x: (viewX - viewWidth / 2 - state.panX) / state.zoom + 1250,
+        y: (viewY - viewHeight / 2 - state.panY) / state.zoom + 1250
     };
 }
 
@@ -258,10 +258,10 @@ function addBlock() {
         }
     }
 
-    // 2. If no outside slot is empty, check the 100 cells of the main grid
+    // 2. If no outside slot is empty, check the 100 cells of the main grid (20..29)
     if (!targetSlot) {
-        for (let y = 1; y <= 10; y++) {
-            for (let x = 1; x <= 10; x++) {
+        for (let y = 20; y <= 29; y++) {
+            for (let x = 20; x <= 29; x++) {
                 const occupied = state.blocks.some(b => b.x === x && b.y === y);
                 if (!occupied) {
                     targetSlot = { x, y };
@@ -274,10 +274,10 @@ function addBlock() {
 
     // 3. Fallback: place in some nearby spot if fully crowded
     if (!targetSlot) {
-        let i = -1;
+        let i = 18;
         while (!targetSlot) {
-            const occupied = state.blocks.some(b => b.x === i && b.y === 0);
-            if (!occupied) targetSlot = { x: i, y: 0 };
+            const occupied = state.blocks.some(b => b.x === i && b.y === 20);
+            if (!occupied) targetSlot = { x: i, y: 20 };
             i--;
         }
     }
@@ -362,12 +362,12 @@ function adjustZoom(factor, clientX = null, clientY = null) {
     }
 
     // Calculate workspace coordinates before zoom
-    const cx = (anchorX - viewWidth / 2 - state.panX) / prevZoom + 1500;
-    const cy = (anchorY - viewHeight / 2 - state.panY) / prevZoom + 1500;
+    const cx = (anchorX - viewWidth / 2 - state.panX) / prevZoom + 1250;
+    const cy = (anchorY - viewHeight / 2 - state.panY) / prevZoom + 1250;
 
     state.zoom = newZoom;
-    state.panX = anchorX - viewWidth / 2 - (cx - 1500) * newZoom;
-    state.panY = anchorY - viewHeight / 2 - (cy - 1500) * newZoom;
+    state.panX = anchorX - viewWidth / 2 - (cx - 1250) * newZoom;
+    state.panY = anchorY - viewHeight / 2 - (cy - 1250) * newZoom;
 
     updateCanvasTransform();
 }

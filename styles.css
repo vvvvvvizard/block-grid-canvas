@@ -300,6 +300,9 @@ body {
     position: relative;
     background-color: #f1f5f9;
     cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .canvas-viewport:active {
@@ -308,13 +311,12 @@ body {
 
 /* Actual Canvas Content that gets Zoomed & Panned */
 .canvas-content {
-    position: absolute;
+    position: relative;
     width: 3000px;
     height: 3000px;
-    top: 50%;
-    left: 50%;
-    transform-origin: 0 0;
+    transform-origin: center center;
     background-color: #f8fafc;
+    flex-shrink: 0;
 }
 
 /* Grid Pattern Background across the whole canvas */

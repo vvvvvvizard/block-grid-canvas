@@ -200,19 +200,9 @@ function setupDraggablePanel(panel) {
 
 // Center the 12x12 grid inside the resizable viewport window
 function centerGrid() {
-    const rect = viewport.getBoundingClientRect();
-    const gridWidth = 12 * CELL_SIZE;
-    const gridHeight = 12 * CELL_SIZE;
-
-    // Center coordinates in canvas space is (1500, 1500)
-    // We want (GRID_OFFSET_X + gridWidth/2, GRID_OFFSET_Y + gridHeight/2) to line up with viewport center
-    const canvasCenterX = GRID_OFFSET_X + gridWidth / 2;
-    const canvasCenterY = GRID_OFFSET_Y + gridHeight / 2;
-
     state.zoom = 1.0;
-    state.panX = (rect.width / 2) - canvasCenterX;
-    state.panY = (rect.height / 2) - canvasCenterY;
-
+    state.panX = 0;
+    state.panY = 0;
     updateCanvasTransform();
 }
 
@@ -227,9 +217,11 @@ function screenToCanvas(clientX, clientY) {
     const rect = viewport.getBoundingClientRect();
     const viewX = clientX - rect.left;
     const viewY = clientY - rect.top;
+    const viewWidth = rect.width;
+    const viewHeight = rect.height;
     return {
-        x: (viewX - state.panX) / state.zoom,
-        y: (viewY - state.panY) / state.zoom
+        x: (viewX - viewWidth / 2 - state.panX) / state.zoom + 1500,
+        y: (viewY - viewHeight / 2 - state.panY) / state.zoom + 1500
     };
 }
 
@@ -356,33 +348,27 @@ function adjustZoom(factor, clientX = null, clientY = null) {
     // Limit bounds
     newZoom = Math.max(0.3, Math.min(3.0, newZoom));
     
+    const rect = viewport.getBoundingClientRect();
+    const viewWidth = rect.width;
+    const viewHeight = rect.height;
+
+    let anchorX, anchorY;
     if (clientX !== null && clientY !== null) {
-        // Zoom centered on cursor position
-        const rect = viewport.getBoundingClientRect();
-        const cursorX = clientX - rect.left;
-        const cursorY = clientY - rect.top;
-
-        // Calculate workspace coordinates before zoom
-        const workspaceX = (cursorX - state.panX) / prevZoom;
-        const workspaceY = (cursorY - state.panY) / prevZoom;
-
-        // Adjust pan offset to anchor zoom at cursor
-        state.panX = cursorX - workspaceX * newZoom;
-        state.panY = cursorY - workspaceY * newZoom;
+        anchorX = clientX - rect.left;
+        anchorY = clientY - rect.top;
     } else {
-        // Zoom centered on viewport middle
-        const rect = viewport.getBoundingClientRect();
-        const midX = rect.width / 2;
-        const midY = rect.height / 2;
-
-        const workspaceX = (midX - state.panX) / prevZoom;
-        const workspaceY = (midY - state.panY) / prevZoom;
-
-        state.panX = midX - workspaceX * newZoom;
-        state.panY = midY - workspaceY * newZoom;
+        anchorX = viewWidth / 2;
+        anchorY = viewHeight / 2;
     }
 
+    // Calculate workspace coordinates before zoom
+    const cx = (anchorX - viewWidth / 2 - state.panX) / prevZoom + 1500;
+    const cy = (anchorY - viewHeight / 2 - state.panY) / prevZoom + 1500;
+
     state.zoom = newZoom;
+    state.panX = anchorX - viewWidth / 2 - (cx - 1500) * newZoom;
+    state.panY = anchorY - viewHeight / 2 - (cy - 1500) * newZoom;
+
     updateCanvasTransform();
 }
 
